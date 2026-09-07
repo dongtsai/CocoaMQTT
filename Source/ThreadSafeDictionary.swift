@@ -35,8 +35,11 @@ public class ThreadSafeDictionary<K: Hashable,V>: Collection {
 
     public subscript(key: K) -> V? {
         set(newValue) {
-            concurrentQueue.async(flags: .barrier) {[weak self] in
-                self?.dictionary[key] = newValue
+            // sync barrier（与 removeValue 一致）：async barrier 存在理论时序窗口——
+            // 写操作异步提交后立即被读取（如 subscribe 写 waitingAck 后立刻 send，
+            // 极快返回的 SUBACK 的 removeValue 可能先于该 async 写执行而拿到 nil）
+            concurrentQueue.sync(flags: .barrier) {
+                self.dictionary[key] = newValue
             }
         }
         get {
