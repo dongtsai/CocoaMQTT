@@ -275,6 +275,9 @@ public class CocoaMQTT: NSObject, CocoaMQTTClient {
 
     /// message id counter
     private var _msgid: UInt16 = 0
+    /// nextMessageID 自增的专用锁：多线程并发 subscribe/unsubscribe/publish 时，
+    /// 无锁的读-改-写会产生重复 msgid，导致 waitingAck 字典键互相覆盖、订阅静默丢失
+    private let msgidLock = NSLock()
     fileprivate var socket: CocoaMQTTSocketProtocol
     fileprivate var reader: CocoaMQTTReader?
     
@@ -340,6 +343,9 @@ public class CocoaMQTT: NSObject, CocoaMQTTClient {
     }
 
     fileprivate func nextMessageID() -> UInt16 {
+        // 加锁保证自增原子性，避免并发调用产生重复 msgid
+        msgidLock.lock()
+        defer { msgidLock.unlock() }
         if _msgid == UInt16.max {
             _msgid = 0
         }
